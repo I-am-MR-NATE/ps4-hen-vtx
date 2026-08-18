@@ -1,0 +1,68 @@
+name: Temporary FL Studio Runtime Ferry
+
+on:
+  push:
+    branches:
+      - mega-dan/fl-runtime-ferry-20260818
+
+permissions:
+  contents: read
+
+jobs:
+  ferry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Download current official FL Studio Windows installer
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p _ferry/flstudio _ferry/python-wheels
+          url='https://support.image-line.com/redirect/flstudio_win_installer'
+          curl --fail --location --retry 5 --retry-all-errors --connect-timeout 30 --max-time 3600 \
+            --user-agent 'Mozilla/5.0' --write-out '%{url_effective}\n' \
+            "$url" -o _ferry/flstudio/flstudio-latest.exe > _ferry/flstudio/FINAL_URL.txt
+          test "$(stat -c %s _ferry/flstudio/flstudio-latest.exe)" -gt 104857600
+          test "$(head -c 2 _ferry/flstudio/flstudio-latest.exe)" = 'MZ'
+          sha256sum _ferry/flstudio/flstudio-latest.exe > _ferry/flstudio/SHA256SUMS.txt
+          file _ferry/flstudio/flstudio-latest.exe > _ferry/flstudio/FILE_IDENTITY.txt
+          printf 'source_redirect=%s\nrun_id=%s\nrun_attempt=%s\nhead=%s\n' \
+            "$url" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" > _ferry/flstudio/RECEIPT.txt
+
+      - name: Download FLP Builder and armory Python runtime wheels
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m pip download --dest _ferry/python-wheels \
+            'luaparser>=3.3.1,<4' \
+            'mido>=1.3.3,<2' \
+            'pedalboard>=0.9.24,<0.10' \
+            'pefile>=2024.8.26,<2025' \
+            'psutil>=6.1,<8' \
+            'pyflp==2.2.1' \
+            'lief==1.0.0' \
+            'construct' \
+            'construct-typing' \
+            'capstone' \
+            'unicorn' \
+            'kaitaistruct'
+          find _ferry/python-wheels -maxdepth 1 -type f -printf '%f\n' | sort > _ferry/python-wheels/PYTHON_WHEELS.txt
+          sha256sum _ferry/python-wheels/* > _ferry/python-wheels/SHA256SUMS.txt
+
+      - name: Upload current FL Studio installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: fl-studio-current-windows-installer
+          path: _ferry/flstudio
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload FLP runtime wheel cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: flp-runtime-python-wheels
+          path: _ferry/python-wheels
+          compression-level: 1
+          retention-days: 1
+          if-no-files-found: error
