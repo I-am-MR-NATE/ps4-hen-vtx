@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - mega-dan/fl-runtime-ferry-20260818
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/fl-runtime-ferry.yml'
+      - '.fl-runtime-ferry-trigger'
 
 permissions:
   contents: read
